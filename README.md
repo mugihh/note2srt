@@ -1,6 +1,6 @@
 # note2srt
 
-A simple Python script to convert timestamped transcripts written in note-taking apps (like macOS Notes) into standard `.srt` subtitle files.
+A simple Python script to convert timestamped plain text files into standard .srt subtitle files.
 
 ## Features
 
