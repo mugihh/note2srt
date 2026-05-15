@@ -8,11 +8,12 @@ A simple Python script to convert timestamped plain text files into standard .sr
 - **FPS Support**: Allows you to specify the video's FPS (`--fps`) to accurately convert frame counts into milliseconds.
 - **Automatic Duration Calculation**:
   - By default, a subtitle's duration is the interval between its start time and the next subtitle's start time.
-  - **Key Rule**: If the interval exceeds 3 seconds, the duration will be **capped at 3 seconds**.
+  - **Key Rule**: If the interval exceeds the maximum duration, the duration will be capped. The default maximum is **3 seconds**.
+  - Use `--max_duration` to adjust that cap.
 - **Hour Correction**:
   - `--subtract_one_hour`: Use this if your input file's timestamps start from `01:00:00`.
   - `--hour_offset`: Adds a specified number of hours to all _output_ timestamps.
-- **Paragraph Handling**: Multiple text paragraphs under a single timestamp (separated by blank lines) will be converted into multiple, separate subtitle entries.
+- **Paragraph Handling**: Multiple text paragraphs under a single timestamp (separated by blank lines) will be converted into multiple, separate subtitle entries. Their timing is split evenly so the subtitles do not overlap.
 
 ## Input File Format
 
@@ -92,6 +93,7 @@ python make_srt.py "video_transcript.txt" "output.srt" --subtract_one_hour --fps
 - `--hour_offset INT`: (Optional) Hour offset to add to the output SRT timestamps. (Default: 0)
 - `--subtract_one_hour`: (Optional) Use this flag if your input file's timeline starts at `01:00:00` instead of `00:00:00`.
 - `--fps FLOAT`: (Optional) The frame rate (FPS) of the source video for accurate frame-to-ms conversion from `hh:mm:ss:ff` format. (Default: 24.0)
+- `--max_duration FLOAT`: (Optional) Maximum duration in seconds for each timestamp block. (Default: 3.0)
 
 ## Why Does This Exist?
 

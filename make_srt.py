@@ -8,6 +8,9 @@ def parse_time(timestr, subtract_one_hour=False, fps=24.0):
     """
     Parse timestamp and convert frames to milliseconds based on FPS.
     """
+    if fps <= 0:
+        raise ValueError("FPS must be greater than 0")
+
     parts = [int(p) for p in timestr.strip().split(":")]
     h, m, s, ms = 0, 0, 0, 0
 
@@ -22,7 +25,7 @@ def parse_time(timestr, subtract_one_hour=False, fps=24.0):
     else:
         raise ValueError(f"Invalid time format: {timestr}")
 
-    if subtract_one_hour:
+    if subtract_one_hour and h > 0:
         h -= 1
 
     return timedelta(hours=h, minutes=m, seconds=s, milliseconds=ms)
@@ -39,15 +42,6 @@ def parse_blocks(lines, subtract_one_hour_if_needed=False, fps=24.0):
     current_raw_lines = []
 
     time_pattern = re.compile(r"^\d{1,2}(:\d{2}){1,3}$")
-
-    should_subtract = False
-    if subtract_one_hour_if_needed:
-        for line in lines:
-            stripped = line.strip()
-            if time_pattern.match(stripped):
-                if stripped.startswith("01:"):
-                    should_subtract = True
-                break
 
     def process_collected_lines():
         if not current_raw_lines:
@@ -73,7 +67,9 @@ def parse_blocks(lines, subtract_one_hour_if_needed=False, fps=24.0):
                 processed_text = process_collected_lines()
                 blocks.append((current_time, processed_text))
             current_time = parse_time(
-                stripped_line, subtract_one_hour=should_subtract, fps=fps
+                stripped_line,
+                subtract_one_hour=subtract_one_hour_if_needed,
+                fps=fps,
             )
             current_raw_lines = []
         else:
@@ -97,33 +93,37 @@ def format_srt_time(td, hour_offset=0):
     return f"{h:02}:{m:02}:{s:02},{ms:03}"
 
 
-def generate_srt(blocks, hour_offset=0):
+def generate_srt(blocks, hour_offset=0, max_duration=3.0):
     """
     Generates SRT content based on the rule:
-    Duration is the interval to the next subtitle, capped at 3 seconds.
+    Duration is the interval to the next subtitle, capped at max_duration.
     """
+    if max_duration <= 0:
+        raise ValueError("Maximum duration must be greater than 0")
+
     srt_lines, index = [], 1
+    blocks = [(start_time, text_lines) for start_time, text_lines in blocks if text_lines]
 
-    for i in range(len(blocks) - 1):
-        current_start_time, text_lines = blocks[i]
-        next_start_time, _ = blocks[i + 1]
-
-        if not text_lines:
-            continue
-
-        interval_seconds = (next_start_time - current_start_time).total_seconds()
-
-        if interval_seconds > 3.0:
-            duration = timedelta(seconds=3)
+    for i, (current_start_time, text_lines) in enumerate(blocks):
+        if i == len(blocks) - 1:
+            total_duration = timedelta(seconds=max_duration)
         else:
-            duration = next_start_time - current_start_time
+            next_start_time, _ = blocks[i + 1]
+            interval_seconds = (next_start_time - current_start_time).total_seconds()
 
-        current_end_time = current_start_time + duration
+            if interval_seconds <= 0 or interval_seconds > max_duration:
+                total_duration = timedelta(seconds=max_duration)
+            else:
+                total_duration = next_start_time - current_start_time
 
-        for line in text_lines:
+        cue_duration = total_duration / len(text_lines)
+
+        for text_index, line in enumerate(text_lines):
+            start_time = current_start_time + cue_duration * text_index
+            end_time = start_time + cue_duration
             srt_lines.append(str(index))
             srt_lines.append(
-                f"{format_srt_time(current_start_time, hour_offset)} --> {format_srt_time(current_end_time, hour_offset)}"
+                f"{format_srt_time(start_time, hour_offset)} --> {format_srt_time(end_time, hour_offset)}"
             )
             srt_lines.append(line)
             srt_lines.append("")
@@ -156,6 +156,12 @@ def main():
         default=24.0,
         help="Frame rate (FPS) of the source video for accurate timestamp conversion (e.g., 24, 29.97, 30). Default: 24.0",
     )
+    parser.add_argument(
+        "--max_duration",
+        type=float,
+        default=3.0,
+        help="Maximum duration in seconds for each timestamp block. Default: 3.0",
+    )
     args = parser.parse_args()
 
     try:
@@ -165,10 +171,16 @@ def main():
         print(f"Error: Input file not found at '{args.input_file}'")
         sys.exit(1)
 
-    blocks = parse_blocks(
-        lines, subtract_one_hour_if_needed=args.subtract_one_hour, fps=args.fps
-    )
-    srt_content = generate_srt(blocks, hour_offset=args.hour_offset)
+    try:
+        blocks = parse_blocks(
+            lines, subtract_one_hour_if_needed=args.subtract_one_hour, fps=args.fps
+        )
+        srt_content = generate_srt(
+            blocks, hour_offset=args.hour_offset, max_duration=args.max_duration
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
 
     with open(args.output_file, "w", encoding="utf-8") as f:
         f.write(srt_content)
