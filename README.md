@@ -13,7 +13,7 @@ A simple Python script to convert timestamped plain text files into standard .sr
 - **Hour Correction**:
   - `--subtract_one_hour`: Use this if your input file's timestamps start from `01:00:00`.
   - `--hour_offset`: Adds a specified number of hours to all _output_ timestamps.
-- **Paragraph Handling**: Multiple text paragraphs under a single timestamp (separated by blank lines) will be converted into multiple, separate subtitle entries. Their timing is split evenly so the subtitles do not overlap.
+- **Paragraph Handling**: Multiple text paragraphs under a single timestamp (separated by blank lines) will be converted into multiple, separate subtitle entries. They are placed one after another, each lasting up to the maximum duration.
 
 ## Input File Format
 

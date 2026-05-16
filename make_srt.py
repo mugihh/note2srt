@@ -96,7 +96,8 @@ def format_srt_time(td, hour_offset=0):
 def generate_srt(blocks, hour_offset=0, max_duration=3.0):
     """
     Generates SRT content based on the rule:
-    Duration is the interval to the next subtitle, capped at max_duration.
+    Each text cue lasts up to max_duration and consecutive cues under the same
+    timestamp are placed one after another.
     """
     if max_duration <= 0:
         raise ValueError("Maximum duration must be greater than 0")
@@ -105,22 +106,23 @@ def generate_srt(blocks, hour_offset=0, max_duration=3.0):
     blocks = [(start_time, text_lines) for start_time, text_lines in blocks if text_lines]
 
     for i, (current_start_time, text_lines) in enumerate(blocks):
-        if i == len(blocks) - 1:
-            total_duration = timedelta(seconds=max_duration)
-        else:
-            next_start_time, _ = blocks[i + 1]
-            interval_seconds = (next_start_time - current_start_time).total_seconds()
-
-            if interval_seconds <= 0 or interval_seconds > max_duration:
-                total_duration = timedelta(seconds=max_duration)
-            else:
-                total_duration = next_start_time - current_start_time
-
-        cue_duration = total_duration / len(text_lines)
-
         for text_index, line in enumerate(text_lines):
-            start_time = current_start_time + cue_duration * text_index
-            end_time = start_time + cue_duration
+            start_time = current_start_time + timedelta(seconds=max_duration * text_index)
+
+            if text_index < len(text_lines) - 1:
+                duration = timedelta(seconds=max_duration)
+            elif i == len(blocks) - 1:
+                duration = timedelta(seconds=max_duration)
+            else:
+                next_start_time, _ = blocks[i + 1]
+                interval_seconds = (next_start_time - start_time).total_seconds()
+
+                if interval_seconds <= 0 or interval_seconds > max_duration:
+                    duration = timedelta(seconds=max_duration)
+                else:
+                    duration = next_start_time - start_time
+
+            end_time = start_time + duration
             srt_lines.append(str(index))
             srt_lines.append(
                 f"{format_srt_time(start_time, hour_offset)} --> {format_srt_time(end_time, hour_offset)}"
